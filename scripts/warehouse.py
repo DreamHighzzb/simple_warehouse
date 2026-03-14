@@ -7,7 +7,6 @@ from datetime import datetime
 import scripts.combobox
 import scripts.dropdownmenu
 from openpyxl import load_workbook
-import pandas as pd
 import os
 import math
 
