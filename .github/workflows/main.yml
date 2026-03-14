@@ -24,4 +24,4 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: 运行测试
-        run: main.py
+        run: python3 main.py
