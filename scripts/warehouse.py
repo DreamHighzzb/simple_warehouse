@@ -4,15 +4,34 @@ from tkinter import messagebox
 import time
 import xlsxwriter
 from datetime import datetime
-import scripts.combobox
-import scripts.dropdownmenu
+import combobox
+import dropdownmenu
 from openpyxl import load_workbook
+import pandas as pd
 import os
 import math
 
-root = None
+# ─── 颜色主题 ────────────────────────────────────────────────────
+THEME = {
+    "bg":         "#F5F7FA",
+    "panel":      "#FFFFFF",
+    "primary":    "#4A90D9",
+    "primary_dk": "#3070B8",
+    "accent":     "#E8F4FF",
+    "header_bg":  "#4A90D9",
+    "header_fg":  "#FFFFFF",
+    "row_odd":    "#F9FBFF",
+    "row_even":   "#FFFFFF",
+    "text":       "#2C3E50",
+    "text_sub":   "#7F8C8D",
+    "red":        "#E74C3C",
+    "border":     "#DCE6F1",
+    "btn_hover":  "#3070B8",
+}
+
 
 #excel 写对象
+global_welcome_frame = None
 global_wb = None
 global_file_name = '仓库总表.xlsx'
 global_model_file_name = '商品型号.xlsx'
@@ -67,9 +86,9 @@ def setPositionAligned(e, posx, posy, ach="center"):
 
 def saveData(type):
     item = []
-    for cbx in combo_box:
-        item.append(cbx.entry.get())
-        cbx.clear()
+    for comboBox in combo_box:
+        item.append(comboBox.get())
+        comboBox.clear()
     if "" == item[0] or "" == item[1]:
         messagebox.askyesno("确认", "没输入商品型号或者入库数量")
         result = False
@@ -77,6 +96,19 @@ def saveData(type):
         result = messagebox.askyesno("确认", "商品型号: {0}\n入库数量: {1}\n入库单价: {2}\n供应商名: {3}\n".format(item[0], item[1], item[2], item[3]))
     if result:
         add_sheet_cell(sheet_title[type], item)
+        if 1 == type:
+            addProductModel(item[0])
+
+def addProductModel(m):
+    global t_products
+    if m not in t_products["商品型号"]:
+        t_products["商品型号"].append(m)
+        global global_model_file_name
+        model_wb = load_workbook(global_model_file_name)
+        ws = model_wb["型号"]
+        last_row = ws.max_row + 1
+        ws.cell(row=last_row, column = 1, value=m)
+        model_wb.save(global_model_file_name)
 
 def filterFunc(filter_param, sheet_name):
     global show_frame_sub
@@ -166,15 +198,15 @@ def showTableData(sheet_name,parent_frame, create_title = False):
     if create_title:
         for cell in ws:
             colIdx = 0
-            lb = tk.Label(parent_frame, text="编号",font=("Arial", 12, "bold"))
+            lb = tk.Label(parent_frame, text="编号",font=("Arial", 15, "bold"))
             setPosition(lb, -5, -185)
             for item in cell:
                 if item.value in filterField:
-                    cbox = scripts.dropdownmenu.createFilteredMenu(parent_frame, filterField[item.value], 20, 3, item.value, filterFunc, sheet_name) 
-                    setPosition(cbox, 70 + colIdx * 150, -185)
-                else:
-                    lb = tk.Label(parent_frame, text=item.value,font=("Arial", 12, "bold"))
-                    setPosition(lb, 70 + colIdx * 150, -185)
+                    cbox = combobox.Combobox(parent_frame, filterField[item.value], [0,0], [2,0], [100,80], True, False, filterFunc, sheet_name, True, [-70, 0])
+                    # cbox = dropdownmenu.createFilteredMenu(parent_frame, filterField[item.value], [12,16], [2,1], item.value, filterFunc, sheet_name) 
+                    setPosition(cbox, 145 + colIdx * 150, -185)
+                lb = tk.Label(parent_frame, text=item.value,font=("Arial", 15, "bold"))
+                setPosition(lb, 67 + colIdx * 150, -184)
                 colIdx = colIdx + 1
             break      
 
@@ -313,6 +345,10 @@ def nextShow(type):
         showTableDataEx(sheet_title[type],show_frame_sub, False)
 
 def showView(type):
+    global global_welcome_frame
+    if None != global_welcome_frame:
+        global_welcome_frame.destroy()
+
     global show_frame_main
     if None != show_frame_main:
         show_frame_main.destroy()
@@ -348,16 +384,18 @@ def showView(type):
         for field in field_data:
             lb = tk.Label(show_frame_main, text=field,font=("Arial", 12, "bold"))
             if field in ['商品型号']:
-                cbox = scripts.combobox.createComboBox(show_frame_main, t_products[field], False, True, False, 20) 
+                cbox = combobox.Combobox(show_frame_main, t_products[field], [12,16], [2,1], [165,80])
                 setPosition(lb, 45 + tag * 150, -50)
                 setPosition(cbox, tag * 150, -25)
             else:
-                cbox = scripts.combobox.createComboBox(show_frame_main, "",False, False, False,10) 
                 if field in ['入库日期','出库日期']:
-                    cbox.is_date_lab = True
-                    cbox._cancel_bind_events()
-                setPosition(lb, 95 + tag * 110, -50)
-                setPosition(cbox, 90 + tag * 110, -25)
+                    cbox = combobox.Combobox(show_frame_main, "", [10,16], [2,1], [1,1], False, True)
+                    setPosition(cbox, 88 + tag * 110, -25)
+                    setPosition(lb, 110 + tag * 110, -50)
+                else:
+                    cbox = combobox.Combobox(show_frame_main, "", [6,16], [2,1], [1,1], False)
+                    setPosition(cbox, 92 + tag * 110, -25)
+                    setPosition(lb, 95 + tag * 110, -50)
             combo_box.append(cbox)
             tag = tag + 1
         button = tk.Button(show_frame_main, text="保存", command=lambda:saveButtonFunc(saveData, type),
@@ -510,29 +548,42 @@ def createExcelTable():
 
 def createMenuUI(root):
     root.title('财富仓库')
-    root.geometry('{0}x{1}'.format(850, 600)) # 这里的乘号不是 * ，而是小写英文字母 x
+    root.geometry('850x600')
     root.resizable(False, False)
-    root.configure(bg="#f0f0f0")
-    """创建菜单栏"""
-    menubar = tk.Menu(root)
+    root.configure(bg=THEME["bg"])
+
+    menubar = tk.Menu(root, bg=THEME["panel"], fg=THEME["text"],
+                      font=("微软雅黑", 11), relief=tk.FLAT,
+                      activebackground=THEME["accent"],
+                      activeforeground=THEME["primary"])
     root.config(menu=menubar)
 
-    welcomeLab = tk.Label(
-        root,
-        text="欢迎使用财富仓库，选择菜单栏进入仓库!!",
-        font=("微软雅黑", 20),
-        fg='blue',
-        width=50,
-        height=30
-    )
-    welcomeLab.pack(expand=True, anchor="center")  # expand=True 填充可用空间
-    
-    # 文件菜单
-    file_menu = tk.Menu(menubar, tearoff=0)
-    menubar.add_cascade(label="菜单栏", menu=file_menu)
-    file_menu.add_command(label="入库信息",command=lambda:showView(1))
-    file_menu.add_command(label="出库信息",command=lambda:showView(2))
-    file_menu.add_command(label="库存信息",command=lambda:showView(3))
+    for label, cmd in [("↓ 入库信息", lambda: showView(1)),
+                       ("↑ 出库信息", lambda: showView(2)),
+                       ("↖↗ 库存信息", lambda: showView(3))]:
+        menubar.add_command(label=label, command=cmd)
+
+    # 欢迎页
+    global global_welcome_frame
+    global_welcome_frame = tk.Frame(root, bg=THEME["bg"])
+    global_welcome_frame.place(x=0, y=0, width=850, height=600)
+
+    # 渐变标题卡片
+    card = tk.Frame(global_welcome_frame, bg=THEME["primary"],
+                    relief=tk.FLAT, bd=0)
+    card.place(relx=0.5, rely=0.38, anchor="center", width=560, height=160)
+
+    tk.Label(card, text="欢迎(*｀∀´*)", font=("Arial", 28), bg=THEME["primary"]).pack(pady=(18, 4))
+    tk.Label(card, text="财富仓库管理系统",
+             font=("微软雅黑", 22, "bold"),
+             bg=THEME["primary"], fg="white").pack()
+    tk.Label(card, text="Warehouse Management System",
+             font=("Arial", 11), bg=THEME["primary"],
+             fg="#C8DFF5").pack(pady=(0, 10))
+
+    tk.Label(global_welcome_frame, text="← 请点击上方菜单栏开始使用",
+             font=("微软雅黑", 12), bg=THEME["bg"],
+             fg=THEME["text_sub"]).place(relx=0.5, rely=0.68, anchor="center")
 
 def read_sheets_with_format(file_name,is_first):
     # 加载工作簿
@@ -596,14 +647,13 @@ def show_sheet(worksheet):
 def initDefaultUI(root):
     createMenuUI(root)
 
-def run():
+if __name__ == '__main__':
     isFirst = False
     if not os.path.exists(global_file_name):
         createExcelTable()
         isFirst = True
     read_sheets_with_format(global_file_name,isFirst)
-    global root
     root = tk.Tk()
     initDefaultUI(root)
-    root.mainloop()    
+    root.mainloop()
     
