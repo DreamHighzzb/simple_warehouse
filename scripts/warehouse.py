@@ -647,7 +647,7 @@ def show_sheet(worksheet):
 def initDefaultUI(root):
     createMenuUI(root)
 
-if __name__ == '__main__':
+def run():
     isFirst = False
     if not os.path.exists(global_file_name):
         createExcelTable()
